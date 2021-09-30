@@ -75,7 +75,7 @@ create table if not exists cinema.workers (
     position_id uuid not null,
     name varchar(45) not null,
     surname varchar(45) not null,
-    passport_number varchar(10) not null unique,
+    passport_number varchar(10) not null unique default random_sequence10(),
     foreign key (position_id) references cinema.positions(id) on delete cascade
     );
 

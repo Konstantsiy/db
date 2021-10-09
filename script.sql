@@ -392,30 +392,83 @@ with hall_film_counts as (
 from hall_film_counts t1
 join title_max_counts t2
 on t1.number = t2.number and t1.c = t2.max_c order by t1.number;
+-- ----------------------------------------------------------------
+-- query_2
+select p.title, h.number
+from cinema.workers w
+join cinema.positions p
+on p.id = w.position_id
+join cinema.halls_workers hw
+on hw.worker_id = w.id
+join cinema.halls h
+on h.id = hw.hall_id
+group by h.number, p.title;
+
+-- position --- halls count
+with position_hall as (
+    select p.title as position_title, h.number as hall_number
+    from cinema.workers w
+    join cinema.positions p
+    on p.id = w.position_id
+    join cinema.halls_workers hw
+    on hw.worker_id = w.id
+    join cinema.halls h
+    on h.id = hw.hall_id
+    group by h.number, p.title
+) select ph.position_title, count(*)
+from position_hall ph
+group by ph.position_title;
+
+-- position --- sectors count
+with position_sector as (
+    select p.title as position_title, h.number as hall_number, hw.sector as hall_sector
+    from cinema.workers w
+    join cinema.positions p
+    on w.position_id = p.id
+    join cinema.halls_workers hw
+    on w.id = hw.worker_id
+    join cinema.halls h
+    on h.id = hw.hall_id
+    group by p.title, h.number, hw.sector
+) select ps.position_title, count(*)
+from position_sector ps
+group by ps.position_title;
+
+with p_h as (
+    with position_hall as (
+        select p.title as position_title, h.number as hall_number
+        from cinema.workers w
+        join cinema.positions p
+        on p.id = w.position_id
+        join cinema.halls_workers hw
+        on hw.worker_id = w.id
+        join cinema.halls h
+        on h.id = hw.hall_id
+        group by h.number, p.title
+    ) select ph.position_title as __position_title, count(*) as __halls_count
+    from position_hall ph
+    group by ph.position_title
+), p_s as (
+    with position_sector as (
+        select p.title as position_title, h.number as hall_number, hw.sector as hall_sector
+        from cinema.workers w
+        join cinema.positions p
+        on w.position_id = p.id
+        join cinema.halls_workers hw
+        on w.id = hw.worker_id
+        join cinema.halls h
+        on h.id = hw.hall_id
+        group by p.title, h.number, hw.sector
+    ) select ps.position_title as __position_title, count(*) as __sectors_count
+    from position_sector ps
+    group by ps.position_title
+) select p_h.__position_title as position, p_h.__halls_count as halls, p_s.__sectors_count as sectors
+from p_h
+join p_s
+on p_h.__position_title = p_s.__position_title;
+-- -------------------------------------------------------------------
 
 
-
-select distinct h.number, f.title, count(s.id) as c
-from cinema.films f
-         join cinema.sessions s
-              on s.film_id = f.id and s.date > current_date
-         join cinema.halls h
-              on h.id = s.hall_id
-group by f.title, h.number;
-
-
-with hall_film_counts as (
-    select h.number, f.title, count(s.id) as c
-    from cinema.films f
-             join cinema.sessions s
-                  on s.film_id = f.id and s.date > current_date
-             join cinema.halls h
-                  on h.id = s.hall_id
-    group by f.title, h.number
-)
-    select t1.number, max(t1.c) as max_c
-    from hall_film_counts t1
-    group by t1.number;
 
 
 

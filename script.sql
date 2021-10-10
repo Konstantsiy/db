@@ -388,7 +388,7 @@ with hall_film_counts as (
     select t1.number, max(t1.c) as max_c
     from hall_film_counts t1
     group by t1.number
-) select distinct on (t1.number) t1.number as hall_number, t1.title as film_title, t1.c as sessions_count
+) select distinct on (t1.number) t1.number as hall_number, t1.title as film_title, t1.c as max_sessions_count
 from hall_film_counts t1
 join title_max_counts t2
 on t1.number = t2.number and t1.c = t2.max_c order by t1.number;
@@ -467,6 +467,143 @@ from p_h
 join p_s
 on p_h.__position_title = p_s.__position_title;
 -- -------------------------------------------------------------------
+-- query_3
+-- place (hall, row, column) --- film --- tickets count
+select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
+from cinema.places p
+         join cinema.halls_places hp
+              on hp.place_id = p.id
+         join cinema.halls h
+              on h.id = hp.hall_id and h.number != 2
+         join cinema.tickets_places tp
+              on tp.place_id = p.id
+         join cinema.tickets t
+              on t.id = tp.ticket_id
+         join cinema.sessions s
+              on s.id = t.session_id
+         join cinema.films f
+              on f.id = s.film_id
+group by place, f.title order by place, count desc;
+
+
+with place_film_counts as (
+    select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
+    from cinema.places p
+             join cinema.halls_places hp
+                  on hp.place_id = p.id
+             join cinema.halls h
+                  on h.id = hp.hall_id and h.number != 2
+             join cinema.tickets_places tp
+                  on tp.place_id = p.id
+             join cinema.tickets t
+                  on t.id = tp.ticket_id
+             join cinema.sessions s
+                  on s.id = t.session_id
+             join cinema.films f
+                  on f.id = s.film_id
+    group by h.number, p.row_number, p.place_number, f.title order by h.number, p.row_number, p.place_number
+), place_max_count as (
+    select t1.place, max(t1.count) as max_c
+    from place_film_counts t1
+    group by t1.place
+) select t1.place as place, t1.film as film, t1.count as max_tickets_count
+from place_film_counts t1
+join place_max_count t2
+on t1.place = t2.place and t1.count = t2.max_c order by t1.place, max_c;
+
+with t1 as (
+    select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
+    from cinema.places p
+             join cinema.halls_places hp
+                  on hp.place_id = p.id
+             join cinema.halls h
+                  on h.id = hp.hall_id and h.number != 2
+             join cinema.tickets_places tp
+                  on tp.place_id = p.id
+             join cinema.tickets t
+                  on t.id = tp.ticket_id
+             join cinema.sessions s
+                  on s.id = t.session_id
+             join cinema.films f
+                  on f.id = s.film_id
+    group by place, f.title order by place, count desc
+) select t1.place, t1.film, t1.count, row_number() over (partition by t1.place order by t1.count desc)
+from t1;
+-- ------------------------------
+with place_film_count as (
+    select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
+    from cinema.places p
+             join cinema.halls_places hp
+                  on hp.place_id = p.id
+             join cinema.halls h
+                  on h.id = hp.hall_id and h.number >= 2 and h.number <= 7
+             join cinema.tickets_places tp
+                  on tp.place_id = p.id
+             join cinema.tickets t
+                  on t.id = tp.ticket_id
+             join cinema.sessions s
+                  on s.id = t.session_id and s.date <= current_date and s.time < current_time
+             join cinema.films f
+                  on f.id = s.film_id
+    group by place, f.title order by place, count desc
+), place_film_countrow_number as (
+    select t1.place as place, t1.film as film, t1.count as count, row_number() over (partition by t1.place order by t1.count desc) as rn
+    from place_film_count t1
+) select t2.place, t2.film, t2.count, t2.rn
+from place_film_countrow_number t2
+where t2.rn <= 4;
+
+
+
+
+insert into cinema.tickets_places
+values ('bed0d63a-26d2-11ec-9773-a79c19a15566', '0d5fa422-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d63a-26d2-11ec-9773-a79c19a15566', '0d5fa423-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d63a-26d2-11ec-9773-a79c19a15566', '0d5fa424-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d63b-26d2-11ec-9773-a79c19a15566', '0d5fa425-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d63c-26d2-11ec-9773-a79c19a15566', '0d5fa426-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d63c-26d2-11ec-9773-a79c19a15566', '0d5fa427-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d63d-26d2-11ec-9773-a79c19a15566', '0d5fa428-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d63e-26d2-11ec-9773-a79c19a15566', '0d5fa429-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d63e-26d2-11ec-9773-a79c19a15566', '0d5fa42a-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d63f-26d2-11ec-9773-a79c19a15566', '0d5fa422-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d63f-26d2-11ec-9773-a79c19a15566', '0d5fa423-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d640-26d2-11ec-9773-a79c19a15566', '0d5fa424-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d641-26d2-11ec-9773-a79c19a15566', '0d5fa425-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d642-26d2-11ec-9773-a79c19a15566', '0d5fa426-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d643-26d2-11ec-9773-a79c19a15566', '0d5fa427-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d644-26d2-11ec-9773-a79c19a15566', '0d5fa428-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d645-26d2-11ec-9773-a79c19a15566', '0d5fa429-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d646-26d2-11ec-9773-a79c19a15566', '0d5fa42a-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d647-26d2-11ec-9773-a79c19a15566', '0d5fa422-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d648-26d2-11ec-9773-a79c19a15566', '0d5fa423-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d649-26d2-11ec-9773-a79c19a15566', '0d5fa424-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d64a-26d2-11ec-9773-a79c19a15566', '0d5fa425-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d64b-26d2-11ec-9773-a79c19a15566', '0d5fa426-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d64c-26d2-11ec-9773-a79c19a15566', '0d5fa427-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d64d-26d2-11ec-9773-a79c19a15566', '0d5fa428-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d64e-26d2-11ec-9773-a79c19a15566', '0d5fa429-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d64f-26d2-11ec-9773-a79c19a15566', '0d5fa42a-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d650-26d2-11ec-9773-a79c19a15566', '0d5fa422-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d651-26d2-11ec-9773-a79c19a15566', '0d5fa423-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d652-26d2-11ec-9773-a79c19a15566', '0d5fa424-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d652-26d2-11ec-9773-a79c19a15566', '0d5fa425-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d652-26d2-11ec-9773-a79c19a15566', '0d5fa426-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d652-26d2-11ec-9773-a79c19a15566', '0d5fa427-2609-11ec-8491-61ceeb4939bd'),
+
+       ('bed0d657-26d2-11ec-9773-a79c19a15566', '0d5fa428-2609-11ec-8491-61ceeb4939bd'),
+       ('bed0d657-26d2-11ec-9773-a79c19a15566', '0d5fa429-2609-11ec-8491-61ceeb4939bd');
+select * from cinema.tickets_places;
+
+
+
 
 
 

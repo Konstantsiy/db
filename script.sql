@@ -376,13 +376,14 @@ from (
 ) as tab
 group by tab.number order by tab.number;
 -- ---------------------------------------------------------------
+-- ######################################################################################
 with hall_film_counts as (
     select h.number, f.title, count(s.id) as c
     from cinema.films f
-    join cinema.sessions s
-    on s.film_id = f.id and s.date > current_date
-    join cinema.halls h
-    on h.id = s.hall_id
+        join cinema.sessions s
+            on s.film_id = f.id and s.date > current_date
+        join cinema.halls h
+            on h.id = s.hall_id
     group by f.title, h.number
 ), title_max_counts as (
     select t1.number, max(t1.c) as max_c
@@ -390,8 +391,10 @@ with hall_film_counts as (
     group by t1.number
 ) select distinct on (t1.number) t1.number as hall_number, t1.title as film_title, t1.c as max_sessions_count
 from hall_film_counts t1
-join title_max_counts t2
-on t1.number = t2.number and t1.c = t2.max_c order by t1.number;
+    join title_max_counts t2
+        on t1.number = t2.number and t1.c = t2.max_c 
+order by t1.number;
+-- ######################################################################################
 -- ----------------------------------------------------------------
 -- query_2
 select p.title, h.number
@@ -434,16 +437,17 @@ with position_sector as (
 from position_sector ps
 group by ps.position_title;
 
+-- ######################################################################################
 with p_h as (
     with position_hall as (
         select p.title as position_title, h.number as hall_number
         from cinema.workers w
-        join cinema.positions p
-        on p.id = w.position_id
-        join cinema.halls_workers hw
-        on hw.worker_id = w.id
-        join cinema.halls h
-        on h.id = hw.hall_id
+            join cinema.positions p
+                on p.id = w.position_id
+            join cinema.halls_workers hw
+                on hw.worker_id = w.id
+            join cinema.halls h
+                on h.id = hw.hall_id
         group by h.number, p.title
     ) select ph.position_title as __position_title, count(*) as __halls_count
     from position_hall ph
@@ -452,12 +456,12 @@ with p_h as (
     with position_sector as (
         select p.title as position_title, h.number as hall_number, hw.sector as hall_sector
         from cinema.workers w
-        join cinema.positions p
-        on w.position_id = p.id
-        join cinema.halls_workers hw
-        on w.id = hw.worker_id
-        join cinema.halls h
-        on h.id = hw.hall_id
+            join cinema.positions p
+                on w.position_id = p.id
+            join cinema.halls_workers hw
+                on w.id = hw.worker_id
+            join cinema.halls h
+                on h.id = hw.hall_id
         group by p.title, h.number, hw.sector
     ) select ps.position_title as __position_title, count(*) as __sectors_count
     from position_sector ps
@@ -466,6 +470,7 @@ with p_h as (
 from p_h
 join p_s
 on p_h.__position_title = p_s.__position_title;
+-- ######################################################################################
 -- -------------------------------------------------------------------
 -- query_3
 -- place (hall, row, column) --- film --- tickets count
@@ -529,7 +534,7 @@ with t1 as (
     group by place, f.title order by place, count desc
 ) select t1.place, t1.film, t1.count, row_number() over (partition by t1.place order by t1.count desc)
 from t1;
--- ------------------------------
+-- ######################################################################################
 with place_film_count as (
     select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
     from cinema.places p
@@ -552,8 +557,7 @@ with place_film_count as (
 ) select t2.place, t2.film, t2.count, t2.rn
 from place_film_countrow_number t2
 where t2.rn <= 4;
-
-
+-- ######################################################################################
 
 
 insert into cinema.tickets_places

@@ -392,7 +392,7 @@ with hall_film_counts as (
 ) select distinct on (t1.number) t1.number as hall_number, t1.title as film_title, t1.c as max_sessions_count
 from hall_film_counts t1
     join title_max_counts t2
-        on t1.number = t2.number and t1.c = t2.max_c 
+        on t1.number = t2.number and t1.c = t2.max_c
 order by t1.number;
 -- ######################################################################################
 -- ----------------------------------------------------------------
@@ -554,7 +554,7 @@ with place_film_count as (
 ), place_film_countrow_number as (
     select t1.place as place, t1.film as film, t1.count as count, row_number() over (partition by t1.place order by t1.count desc) as rn
     from place_film_count t1
-) select t2.place, t2.film, t2.count, t2.rn
+) select t2.place, t2.film, t2.count
 from place_film_countrow_number t2
 where t2.rn <= 4;
 -- ######################################################################################
@@ -605,6 +605,69 @@ values ('bed0d63a-26d2-11ec-9773-a79c19a15566', '0d5fa422-2609-11ec-8491-61ceeb4
        ('bed0d657-26d2-11ec-9773-a79c19a15566', '0d5fa428-2609-11ec-8491-61ceeb4939bd'),
        ('bed0d657-26d2-11ec-9773-a79c19a15566', '0d5fa429-2609-11ec-8491-61ceeb4939bd');
 select * from cinema.tickets_places;
+-- ------------------------------------------------------------------
+-- ------------------------------------------------------------------
+insert into cinema.halls (number, type)
+values (4, '2D'), (5, '3D'), (6, 'IMAX');
+select * from cinema.halls;
+
+-- view all unmentioned halls
+select hls.id
+from cinema.halls hls
+where hls.id not in (
+    select distinct h.id
+    from cinema.halls h
+    join cinema.sessions s
+    on s.hall_id = h.id
+);
+
+with added_film_id as (
+    with week as (
+        select (date_trunc('week', current_date)+interval '7 days')::date as next_monday
+    ) insert into cinema.films(title, duration, rental_start_date, rental_end_date)
+    values ('temp4', interval '118 minutes', (select week.next_monday from week), ((select week.next_monday from week)+interval '7 days')::date)
+    returning id as film_id
+), free_halls_id as (
+    select hls.number as hall_number
+    from cinema.halls hls
+    where hls.id not in (
+        select distinct h.id
+        from cinema.halls h
+        join cinema.sessions s
+        on s.hall_id = h.id
+    )
+) select (select * from added_film_id),free.hall_number
+from free_halls_id free
+where free.hall_number::text != '';
+
+
+-- нужно получить даты дней со следующего понедельника по пятницу
+with tt as (
+    select (date_trunc('week', current_date)+interval '7 days')::date as next_monday
+) select * from generate_series();
+
+-- генерация дат дней от до
+with min_max (start_date, end_date) as (
+   values ((date '2012-06-29' - interval '1 day')::date, date '2012-07-3')
+), date_range as (
+  select end_date - start_date as duration
+  from min_max
+)
+select start_date + i
+from min_max
+cross join generate_series(1, (select duration from date_range)) i;
+
+
+
+-- insert into cinema.sessions (film_id, hall_id, date, time)
+-- select
+
+
+
+
+
+
+
 
 
 

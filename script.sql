@@ -621,11 +621,11 @@ where hls.id not in (
     on s.hall_id = h.id
 );
 
-with added_film_id as (
-    with week as (
-        select (date_trunc('week', current_date)+interval '7 days')::date as next_monday
-    ) insert into cinema.films(title, duration, rental_start_date, rental_end_date)
-    values ('temp4', interval '118 minutes', (select week.next_monday from week), ((select week.next_monday from week)+interval '7 days')::date)
+with next_monday as (
+    select (date_trunc('week', current_date)+interval '7 days')::date as day
+), added_film_id as (
+    insert into cinema.films(title, duration, rental_start_date, rental_end_date)
+    values ('temp5', interval '118 minutes', (select * from next_monday), ((select * from next_monday)+interval '7 days')::date)
     returning id as film_id
 ), free_halls_id as (
     select hls.number as hall_number

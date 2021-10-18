@@ -259,9 +259,14 @@ values ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba7-2609-11ec-8491-61ceeb4
 
 
 insert into cinema.sessions (film_id, hall_id, date, time)
+values        ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba6-2609-11ec-8491-61ceeb4939bd', date '2021-10-25', time '19:00:00');
+
+
+insert into cinema.sessions (film_id, hall_id, date, time)
 values ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba6-2609-11ec-8491-61ceeb4939bd', date '2021-10-17', time '14:30:00'),
        ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba7-2609-11ec-8491-61ceeb4939bd', date '2021-10-20', time '16:30:00'),
        ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba8-2609-11ec-8491-61ceeb4939bd', date '2021-10-25', time '19:00:00'),
+
 
        ('73e176bf-2607-11ec-8491-61ceeb4939bd', '1e004ba6-2609-11ec-8491-61ceeb4939bd', date '2021-10-19', time '11:30:00'),
        ('73e176bf-2607-11ec-8491-61ceeb4939bd', '1e004ba7-2609-11ec-8491-61ceeb4939bd', date '2021-10-18', time '18:30:00'),
@@ -376,9 +381,32 @@ from (
 ) as tab
 group by tab.number order by tab.number;
 -- ---------------------------------------------------------------
--- ######################################################################################
+select h.number as hall_number, f.title as film_title, count(s.id) as count
+from cinema.films f
+join cinema.sessions s
+on s.film_id = f.id and s.date > current_date
+join cinema.halls h
+on h.id = s.hall_id
+group by f.title, h.number;
+
+
 with hall_film_counts as (
-    select h.number, f.title, count(s.id) as c
+    -- выводим количество сеансов, которые запланированы для каждого фильмы в каждом зале
+    select h.number as hall_number, f.title, count(s.id) as c
+    from cinema.films f
+             join cinema.sessions s
+                  on s.film_id = f.id and s.date > current_date
+             join cinema.halls h
+                  on h.id = s.hall_id
+    group by f.title, h.number
+) select t1.hall_number, max(t1.c) as max_c
+    from hall_film_counts t1
+    group by t1.hall_number;
+-- ######################################################################################
+
+with hall_film_counts as (
+    -- выделяем количество сеансов, которые запланированы для каждого фильмы в каждом зале
+    select h.number as hall_number, f.title, count(s.id) as c
     from cinema.films f
         join cinema.sessions s
             on s.film_id = f.id and s.date > current_date
@@ -386,14 +414,19 @@ with hall_film_counts as (
             on h.id = s.hall_id
     group by f.title, h.number
 ), title_max_counts as (
-    select t1.number, max(t1.c) as max_c
+    -- выделяем максимальное количество сеансов в каждом зале
+    select t1.hall_number, max(t1.c) as max_c
     from hall_film_counts t1
-    group by t1.number
-) select distinct on (t1.number) t1.number as hall_number, t1.title as film_title, t1.c as max_sessions_count
+    group by t1.hall_number
+) -- уникально выделяем соответсвия между популярными фильмами и максимальным количеством сеансов
+select t1.hall_number as hall_number, t1.title as film_title, t1.c as max_sessions_count
 from hall_film_counts t1
     join title_max_counts t2
-        on t1.number = t2.number and t1.c = t2.max_c
-order by t1.number;
+        on t1.hall_number = t2.hall_number and t1.c = t2.max_c
+order by t1.hall_number;
+
+select * from cinema.films;
+
 -- ######################################################################################
 -- ----------------------------------------------------------------
 -- query_2
@@ -418,7 +451,7 @@ with position_hall as (
     join cinema.halls h
     on h.id = hw.hall_id
     group by h.number, p.title
-) select ph.position_title, count(*)
+) select ph.position_title, count(*) as halls_count
 from position_hall ph
 group by ph.position_title;
 
@@ -433,13 +466,26 @@ with position_sector as (
     join cinema.halls h
     on h.id = hw.hall_id
     group by p.title, h.number, hw.sector
-) select ps.position_title, count(*)
+) select ps.position_title, count(*) as sectors_count
 from position_sector ps
 group by ps.position_title;
-
+-- ---------------------------------------------
+with position_sector as ( -- выделяем секторы и привязанные к ним должности
+    select p.title as position_title, h.number as hall_number, hw.sector as hall_sector
+    from cinema.workers w
+             join cinema.positions p
+                  on w.position_id = p.id
+             join cinema.halls_workers hw
+                  on w.id = hw.worker_id
+             join cinema.halls h
+                  on h.id = hw.hall_id
+    group by p.title, h.number, hw.sector
+) select ps.position_title as __position_title, count(*) as __sectors_count
+from position_sector ps
+group by ps.position_title;
 -- ######################################################################################
-with p_h as (
-    with position_hall as (
+with p_h as ( -- выделяем, сколько залов закреплено за каждой должностью
+    with position_hall as ( -- выделяем залы и привязанные к ним должности
         select p.title as position_title, h.number as hall_number
         from cinema.workers w
             join cinema.positions p
@@ -452,8 +498,8 @@ with p_h as (
     ) select ph.position_title as __position_title, count(*) as __halls_count
     from position_hall ph
     group by ph.position_title
-), p_s as (
-    with position_sector as (
+), p_s as ( -- выделяем, сколько секторов закреплено за каждой должностью в каждом зале
+    with position_sector as ( -- выделяем секторы и привязанные к ним должности
         select p.title as position_title, h.number as hall_number, hw.sector as hall_sector
         from cinema.workers w
             join cinema.positions p
@@ -467,9 +513,10 @@ with p_h as (
     from position_sector ps
     group by ps.position_title
 ) select p_h.__position_title as position, p_h.__halls_count as halls, p_s.__sectors_count as sectors
-from p_h
+from p_h -- выделяем соотвествия
 join p_s
 on p_h.__position_title = p_s.__position_title;
+
 -- ######################################################################################
 -- -------------------------------------------------------------------
 -- query_3
@@ -534,29 +581,58 @@ with t1 as (
     group by place, f.title order by place, count desc
 ) select t1.place, t1.film, t1.count, row_number() over (partition by t1.place order by t1.count desc)
 from t1;
--- ######################################################################################
-with place_film_count as (
+-- ---------------------------------------------------------------------
+with place_film_count as ( -- выделяем количество сеансов, запланированное каждое место и на каждый фильм
     select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
     from cinema.places p
              join cinema.halls_places hp
                   on hp.place_id = p.id
              join cinema.halls h
-                  on h.id = hp.hall_id and h.number >= 2 and h.number <= 7
+                  on h.id = hp.hall_id and h.number != 2
              join cinema.tickets_places tp
                   on tp.place_id = p.id
              join cinema.tickets t
                   on t.id = tp.ticket_id
              join cinema.sessions s
-                  on s.id = t.session_id and s.date <= current_date and s.time < current_time
+                  on s.id = t.session_id
+             join cinema.films f
+                  on f.id = s.film_id
+    group by place, f.title order by place, count desc
+)
+    select t1.place as place, t1.film as film, t1.count as count, row_number() over (partition by t1.place order by t1.count desc) as rn
+    from place_film_count t1;
+-- ######################################################################################
+
+with place_film_count as (
+    -- выделяем количество сеансов, запланированное каждое место и на каждый фильм
+    select (h.number, p.row_number, p.place_number) as place, f.title as film, count(tp.ticket_id) as count
+    from cinema.places p
+             join cinema.halls_places hp
+                  on hp.place_id = p.id
+             join cinema.halls h
+                  on h.id = hp.hall_id and h.number != 2
+             join cinema.tickets_places tp
+                  on tp.place_id = p.id
+             join cinema.tickets t
+                  on t.id = tp.ticket_id
+             join cinema.sessions s
+                  on s.id = t.session_id
              join cinema.films f
                   on f.id = s.film_id
     group by place, f.title order by place, count desc
 ), place_film_countrow_number as (
-    select t1.place as place, t1.film as film, t1.count as count, row_number() over (partition by t1.place order by t1.count desc) as rn
+    -- нумеруем последовательности из фильмов, отсортированных по количеству проданных билетов,
+    -- начиная каждую новую последовательность с нового места
+    select t1.place as place,
+           t1.film as film,
+           t1.count as count,
+           row_number() over (partition by t1.place order by t1.count desc) as rn
     from place_film_count t1
-) select t2.place, t2.film, t2.count
+) -- выделяем первые 4 фильма из каждой последовательности
+select t2.place, t2.film, t2.count
 from place_film_countrow_number t2
-where t2.rn <= 4;
+where t2.rn <= 2;
+
 -- ######################################################################################
 
 
@@ -621,50 +697,45 @@ where hls.id not in (
     on s.hall_id = h.id
 );
 
-with next_monday as (
+-- ------------------------------------------------------------------------------------
+-- ------------------------------------------------------------------------------------
+begin transaction;
+with next_monday as ( -- нахождение даты следующего понедельника
     select (date_trunc('week', current_date)+interval '7 days')::date as day
-), added_film_id as (
-    insert into cinema.films(title, duration, rental_start_date, rental_end_date)
-    values ('temp5', interval '118 minutes', (select * from next_monday), ((select * from next_monday)+interval '7 days')::date)
-    returning id as film_id
-), free_halls_id as (
-    select hls.number as hall_number
-    from cinema.halls hls
-    where hls.id not in (
-        select distinct h.id
-        from cinema.halls h
-        join cinema.sessions s
-        on s.hall_id = h.id
-    )
-) select (select * from added_film_id),free.hall_number
-from free_halls_id free
-where free.hall_number::text != '';
+) -- вставка фильма на неделю, начиная со следующего понедельника
+insert into cinema.films(title, duration, rental_start_date, rental_end_date)
+values ('Человек-амфибия-1', interval '118 minutes', (select * from next_monday), ((select * from next_monday)+interval '7 days')::date);
 
-
--- нужно получить даты дней со следующего понедельника по пятницу
-with tt as (
-    select (date_trunc('week', current_date)+interval '7 days')::date as next_monday
-) select * from generate_series();
-
--- генерация дат дней от до
-with min_max (start_date, end_date) as (
-   values ((date '2012-06-29' - interval '1 day')::date, date '2012-07-3')
-), date_range as (
-  select end_date - start_date as duration
-  from min_max
+insert into cinema.sessions (film_id, hall_id, date, time)
+with sessions_selection as (
+    with next_monday as ( -- нахождение даты следующего понедельника
+        select (date_trunc('week', current_date)+interval '7 days')::date as day
+    ), added_film_id as ( -- поиск только что добавленного фильма по названию
+        select f.id from cinema.films f where f.title = 'Человек-амфибия-1' limit 1
+    ), free_halls_id as ( -- нахождение всех свободных заллов
+        select hls.id as hall_id from cinema.halls hls
+        where hls.id not in (
+            select distinct h.id from cinema.halls h join cinema.sessions s on s.hall_id = h.id
+        )
+    ), next_week_days as ( -- выделение последовательности дней следующей недели, начиная с понедельника
+        select day::date as day_date
+        from generate_series((select * from next_monday), ((select * from next_monday) + interval '7 days')::date, interval '1 day') day
+    ), films_halls as ( -- фильмы и свободные заллы
+        select (select * from added_film_id) as film_id, free.hall_id from free_halls_id free where free.hall_id::text != ''
+    ), films_dates as ( -- фильмы и даты сеансов
+        select (select * from added_film_id) as film_id, next_week_days.day_date as s_date
+        from next_week_days where next_week_days.day_date::text != ''
+    ) -- выделение совпадений по id фильмов
+    select fh.film_id as s_film_id, fh.hall_id as s_hall_id, fd.s_date as s_date, time '21:00:00' as s_time
+    from films_halls fh join films_dates fd on fh.film_id = fd.film_id
 )
-select start_date + i
-from min_max
-cross join generate_series(1, (select duration from date_range)) i;
-
-
-
--- insert into cinema.sessions (film_id, hall_id, date, time)
--- select
-
-
-
-
+select ss.s_film_id, ss.s_hall_id, ss.s_date, ss.s_time  from sessions_selection ss;
+commit;
+-- ------------------------------------------------------------------------------------
+-- b5b7622e-3057-11ec-8955-7de42c1d0197
+select * from cinema.sessions;
+-- ------------------------------------------------------------------------------------
+-- ------------------------------------------------------------------------------------
 
 
 

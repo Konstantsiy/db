@@ -698,20 +698,22 @@ where hls.id not in (
 );
 
 -- ------------------------------------------------------------------------------------
+-- SELECTION 1
 -- ------------------------------------------------------------------------------------
+
 begin transaction;
 with next_monday as ( -- нахождение даты следующего понедельника
     select (date_trunc('week', current_date)+interval '7 days')::date as day
 ) -- вставка фильма на неделю, начиная со следующего понедельника
 insert into cinema.films(title, duration, rental_start_date, rental_end_date)
-values ('Человек-амфибия-1', interval '118 minutes', (select * from next_monday), ((select * from next_monday)+interval '7 days')::date);
+values ('Человек-амфибия 3', interval '118 minutes', (select * from next_monday), ((select * from next_monday)+interval '7 days')::date);
 
 insert into cinema.sessions (film_id, hall_id, date, time)
 with sessions_selection as (
     with next_monday as ( -- нахождение даты следующего понедельника
         select (date_trunc('week', current_date)+interval '7 days')::date as day
     ), added_film_id as ( -- поиск только что добавленного фильма по названию
-        select f.id from cinema.films f where f.title = 'Человек-амфибия-1' limit 1
+        select f.id from cinema.films f where f.title = 'Человек-амфибия 3' limit 1
     ), free_halls_id as ( -- нахождение всех свободных заллов
         select hls.id as hall_id from cinema.halls hls
         where hls.id not in (
@@ -731,19 +733,66 @@ with sessions_selection as (
 )
 select ss.s_film_id, ss.s_hall_id, ss.s_date, ss.s_time  from sessions_selection ss;
 commit;
+
 -- ------------------------------------------------------------------------------------
--- b5b7622e-3057-11ec-8955-7de42c1d0197
+-- c4fee89a-3112-11ec-a457-d12111e544d5
 select * from cinema.sessions;
+select * from cinema.films;
 -- ------------------------------------------------------------------------------------
+-- SELECTION 2
+-- ------------------------------------------------------------------------------------
+update cinema.tickets set price = 0.85 * price
+where id in (
+    select t.id from cinema.tickets t
+    join cinema.sessions s
+    on t.session_id = s.id and t.payment_date is null and s.id in (
+        select s.id, s.time
+        from cinema.sessions s
+        where (s.time - interval '2 hours') <= current_time
+    )
+);
+-- ------------------------------------------------------------------------------------
+-- SELECTION 3
+-- ------------------------------------------------------------------------------------
+insert into cinema.sessions (film_id, hall_id, date, time)
+values ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba6-2609-11ec-8491-61ceeb4939bd', date '2021-09-07', time '10:30:00'),
+       ('73e176c0-2607-11ec-8491-61ceeb4939bd', '1e004ba7-2609-11ec-8491-61ceeb4939bd', date '2021-09-07', time '10:30:00');
+-- ------------------------------------------------------------------------------------
+insert into cinema.tickets (session_id, worker_id, price, payment_date)
+values ('1daed92a-3125-11ec-a457-d12111e544d5', '9907212e-261f-11ec-8491-61ceeb4939bd', 20.25, date '2021-10-14'),
+       ('1daed92a-3125-11ec-a457-d12111e544d5', '9907212f-261f-11ec-8491-61ceeb4939bd', 48, date '2021-10-14'),
+
+       ('1daed92b-3125-11ec-a457-d12111e544d5', '9907212e-261f-11ec-8491-61ceeb4939bd', 25.25, date '2021-10-15'),
+       ('1daed92b-3125-11ec-a457-d12111e544d5', '9907212f-261f-11ec-8491-61ceeb4939bd', 30, date '2021-10-20');
+
+select * from cinema.sessions;
+
 -- ------------------------------------------------------------------------------------
 
+insert into cinema.sessions (film_id, hall_id, date, time)
+values ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba6-2609-11ec-8491-61ceeb4939bd', date '2021-10-21', time '14:30:00'),
+       ('73e176be-2607-11ec-8491-61ceeb4939bd', '1e004ba6-2609-11ec-8491-61ceeb4939bd', date '2021-10-20', time '14:30:00');
 
+with sessions_selection as (
+    select s.id as session_id, s.date as session_date, s.time as session_time, count(t.id) as tickets_count from cinema.sessions s
+    join cinema.tickets t
+    on t.session_id = s.id
+    group by s.id
+) select * from sessions_selection;
 
-
-
-
-
-
-
-
-
+begin transaction;
+with sessions_selection as (
+    -- выделение всех завершенных сеансов за последний месяц
+    select s.id as session_id, s.date as session_date, s.time as session_time, count(t.id) as tickets_count
+    from cinema.sessions s
+    join cinema.tickets t
+    on t.session_id = s.id
+        and s.date > date_trunc('month', current_date)
+        and ((s.date != current_date and s.date < current_date) or (s.date = current_date and s.time < current_time))
+    group by s.id
+)
+delete from cinema.sessions s
+where s.id in (
+    select ss.session_id from sessions_selection ss where ss.tickets_count <= 3
+);
+commit;
